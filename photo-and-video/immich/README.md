@@ -184,12 +184,12 @@ server {
     location / {
         root /var/lib/immich/app/www;
         try_files $uri $uri/ @api;
-      
+  
         # Security headers
         add_header X-Frame-Options DENY;
         add_header X-Content-Type-Options nosniff;
         add_header Referrer-Policy strict-origin-when-cross-origin;
-      
+  
         # Cache static assets
         location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
             expires 1y;
@@ -204,17 +204,17 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-      
+  
         # WebSocket support
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-      
+  
         # Timeouts for large uploads
         proxy_read_timeout 3600;
         proxy_connect_timeout 3600;
         proxy_send_timeout 3600;
-      
+  
         # Buffer settings for uploads
         proxy_buffering off;
         proxy_request_buffering off;
@@ -226,17 +226,17 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-      
+  
         # WebSocket support
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-      
+  
         # Timeouts for large uploads  
         proxy_read_timeout 3600;
         proxy_connect_timeout 3600;
         proxy_send_timeout 3600;
-      
+  
         # Buffer settings for uploads
         proxy_buffering off;
         proxy_request_buffering off;
@@ -246,7 +246,7 @@ server {
     location /library/ {
         internal;
         alias /var/lib/immich/app/library/;
-      
+  
         # Security headers
         add_header X-Content-Type-Options nosniff;
         add_header X-Frame-Options DENY;
@@ -270,6 +270,158 @@ sudo chmod 755 /var/lib/immich /var/lib/immich/app
 sudo chmod -R 755 /var/lib/immich/app/www/
 sudo chown -R immich:www-data /var/lib/immich/app/www/
 ```
+
+## Cloudflare Tunnel Configuration
+
+If you're exposing Immich through a Cloudflare tunnel (for public access), you need to make specific configuration changes:
+
+### 🔧 **Required Changes for Cloudflare Tunnel**
+
+#### 1. Update Immich Host Binding
+
+By default, Immich only listens on localhost. For Cloudflare tunnel to work, change the host binding:
+
+```bash
+# Edit the environment file
+sudo nano /var/lib/immich/env
+
+# Change this line:
+IMMICH_HOST=127.0.0.1
+
+# To this:
+IMMICH_HOST=0.0.0.0
+
+# Restart the service
+sudo systemctl restart immich.service
+```
+
+#### 2. Update Nginx Configuration for Cloudflare
+
+Replace the default Nginx configuration with a Cloudflare-optimized version:
+
+```bash
+sudo tee /etc/nginx/sites-available/immich > /dev/null << 'EOF'
+upstream immich_server {
+    server 127.0.0.1:2283;
+    keepalive 2;
+}
+
+server {
+    listen 80;
+    server_name your-domain.com _;  # Replace with your actual domain
+
+    client_max_body_size 50000M;
+
+    # Cloudflare real IP configuration
+    set_real_ip_from 173.245.48.0/20;
+    set_real_ip_from 103.21.244.0/22;
+    set_real_ip_from 103.22.200.0/22;
+    set_real_ip_from 103.31.4.0/22;
+    set_real_ip_from 141.101.64.0/18;
+    set_real_ip_from 108.162.192.0/18;
+    set_real_ip_from 190.93.240.0/20;
+    set_real_ip_from 188.114.96.0/20;
+    set_real_ip_from 197.234.240.0/22;
+    set_real_ip_from 198.41.128.0/17;
+    set_real_ip_from 162.158.0.0/15;
+    set_real_ip_from 104.16.0.0/13;
+    set_real_ip_from 104.24.0.0/14;
+    set_real_ip_from 172.64.0.0/13;
+    set_real_ip_from 131.0.72.0/22;
+    real_ip_header CF-Connecting-IP;
+
+    # Security headers (optimized for Cloudflare)
+    add_header X-Content-Type-Options nosniff;
+    add_header Referrer-Policy strict-origin-when-cross-origin;
+
+    # Serve static web files directly
+    location / {
+        root /var/lib/immich/app/www;
+        try_files $uri $uri/ @api;
+    
+        # Cache static assets
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    # API endpoints
+    location @api {
+        proxy_pass http://immich_server;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+    
+        # WebSocket support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    
+        # Timeouts for large uploads
+        proxy_read_timeout 3600;
+        proxy_connect_timeout 3600;
+        proxy_send_timeout 3600;
+    
+        # Buffer settings for uploads
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+
+    location /api {
+        proxy_pass http://immich_server;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+    
+        # WebSocket support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    
+        # Timeouts for large uploads  
+        proxy_read_timeout 3600;
+        proxy_connect_timeout 3600;
+        proxy_send_timeout 3600;
+    
+        # Buffer settings for uploads
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+
+    # Serve uploaded media files directly
+    location /library/ {
+        internal;
+        alias /var/lib/immich/app/library/;
+    
+        # Security headers
+        add_header X-Content-Type-Options nosniff;
+    }
+}
+EOF
+
+# Test and reload Nginx
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### ⚠️ **Important Notes for Cloudflare Users**
+
+1. **Host Binding**: The critical change is `IMMICH_HOST=0.0.0.0` - without this, Immich won't accept proxied requests
+2. **Security**: Cloudflare handles SSL termination, so the local connection uses HTTP
+3. **Real IP**: The configuration preserves visitors' real IP addresses through CF-Connecting-IP headers
+4. **Domain Name**: Replace `your-domain.com` with your actual domain in both Nginx and tunnel config
+5. **Mobile Apps**: Should work seamlessly once the web interface is accessible
+
+### 🔍 **Expected Results:**
+
+- Local API: `{"res":"pong"}`
+- Immich should be listening on `0.0.0.0:2283`
+- Tunnel should show "Connected" status
 
 ## Architecture
 
@@ -327,29 +479,6 @@ This setup builds upon the excellent foundation provided by **arter97's immich-n
 
 This deployment stands on the shoulders of the exceptional work by **arter97** ([immich-native](https://github.com/arter97/immich-native)). Their installation script and systemd service approach provided the robust foundation that made this deployment possible. I am grateful for their contribution to the community and highly recommend their repository as the go-to solution for native Immich deployments.
 
-## Key Differences from Complex Approach
-
-### ✅ Simplified Architecture
-
-- **Single service** instead of multiple microservices
-- **Static file serving** by Nginx instead of development server
-- **Relative paths** for upload location (`./library`)
-- **High-level mount point** (`/var/lib/immich`) for cleaner organization
-
-### ✅ Resolved Issues
-
-- **PostgreSQL Extension**: Uses `pgvector` via `DB_VECTOR_EXTENSION=pgvector`
-- **GeoNames Data**: Automatically downloads required geodata files
-- **Sharp Module**: Installed for thumbnail generation
-- **Systemd Service**: Single service with proper dependencies
-
-### ✅ Production Benefits
-
-- **Cleaner file organization** with high-level mount
-- **Better performance** with static file serving
-- **Easier maintenance** with single service
-- **Proper permissions** for web server access
-
 ## Verification
 
 ### Health Checks
@@ -367,15 +496,9 @@ curl -I http://192.168.0.47/
 # Expected: HTTP/1.1 200 OK
 ```
 
-### Access Information
-
-- **Web Interface**: http://192.168.0.47
-- **API Endpoint**: http://192.168.0.47/api
-- **Upload Storage**: `/var/lib/immich/app/library/`
-
 ## First-Time Setup
 
-1. Navigate to http://192.168.0.47 in your web browser
+1. Navigate to your local IP in your web browser
 2. Create your first admin user account
 3. Configure library settings (default path is correct)
 4. Begin uploading and managing your photos/videos
