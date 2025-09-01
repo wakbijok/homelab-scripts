@@ -338,7 +338,7 @@ server {
     location / {
         root /var/lib/immich/app/www;
         try_files $uri $uri/ @api;
-    
+  
         # Cache static assets
         location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
             expires 1y;
@@ -354,17 +354,17 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
         proxy_set_header X-Forwarded-Host $host;
-    
+  
         # WebSocket support
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-    
+  
         # Timeouts for large uploads
         proxy_read_timeout 3600;
         proxy_connect_timeout 3600;
         proxy_send_timeout 3600;
-    
+  
         # Buffer settings for uploads
         proxy_buffering off;
         proxy_request_buffering off;
@@ -377,17 +377,17 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
         proxy_set_header X-Forwarded-Host $host;
-    
+  
         # WebSocket support
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-    
+  
         # Timeouts for large uploads  
         proxy_read_timeout 3600;
         proxy_connect_timeout 3600;
         proxy_send_timeout 3600;
-    
+  
         # Buffer settings for uploads
         proxy_buffering off;
         proxy_request_buffering off;
@@ -397,7 +397,7 @@ server {
     location /library/ {
         internal;
         alias /var/lib/immich/app/library/;
-    
+  
         # Security headers
         add_header X-Content-Type-Options nosniff;
     }
@@ -478,23 +478,6 @@ This setup builds upon the excellent foundation provided by **arter97's immich-n
 ### 🙏 **Acknowledgment**
 
 This deployment stands on the shoulders of the exceptional work by **arter97** ([immich-native](https://github.com/arter97/immich-native)). Their installation script and systemd service approach provided the robust foundation that made this deployment possible. I am grateful for their contribution to the community and highly recommend their repository as the go-to solution for native Immich deployments.
-
-## Verification
-
-### Health Checks
-
-```bash
-# Service status
-sudo systemctl status immich.service
-
-# API connectivity
-curl http://192.168.0.47/api/server/ping
-# Expected: {"res":"pong"}
-
-# Web interface
-curl -I http://192.168.0.47/
-# Expected: HTTP/1.1 200 OK
-```
 
 ## First-Time Setup
 
